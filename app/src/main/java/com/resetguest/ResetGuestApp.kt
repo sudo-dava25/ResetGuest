@@ -1,0 +1,463 @@
+package com.resetguest
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+
+private val BgDeep = Color(0xFF080B10)
+private val BgCard = Color(0xFF0D1117)
+private val BgSurface = Color(0xFF161B22)
+private val BgElevated = Color(0xFF1C2128)
+private val BorderSubtle = Color(0xFF21262D)
+private val BorderMuted = Color(0xFF30363D)
+private val AccentBlue = Color(0xFF58A6FF)
+private val AccentGreen = Color(0xFF3FB950)
+private val AccentRed = Color(0xFFF85149)
+private val AccentOrange = Color(0xFFD29922)
+private val AccentPurple = Color(0xFF8B949E)
+private val TextPrimary = Color(0xFFE6EDF3)
+private val TextSecondary = Color(0xFF8B949E)
+private val TextMuted = Color(0xFF484F58)
+
+@Composable
+fun ResetGuestApp(viewModel: MainViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgDeep)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            TopBar(uiState = uiState, onClear = viewModel::clearLogs, onRefreshRoot = viewModel::checkRoot)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
+
+                RootStatusCard(uiState = uiState)
+
+                ScriptPreviewCard()
+
+                ActionButton(
+                    uiState = uiState,
+                    onExecute = viewModel::executeReset
+                )
+
+                if (uiState.logs.isNotEmpty()) {
+                    LogPanel(
+                        logs = uiState.logs,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBar(
+    uiState: UiState,
+    onClear: () -> Unit,
+    onRefreshRoot: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF1F6FEB), Color(0xFF58A6FF))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SettingsSuggest,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column {
+                Text(
+                    text = "ResetGuest",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "ML Guest Account Reset",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (uiState.logs.isNotEmpty()) {
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteSweep,
+                        contentDescription = "Clear logs",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            IconButton(
+                onClick = onRefreshRoot,
+                modifier = Modifier.size(36.dp),
+                enabled = uiState.appState != AppState.RUNNING && uiState.appState != AppState.CHECKING_ROOT
+            ) {
+                val rotation by rememberInfiniteTransition(label = "rot").animateFloat(
+                    initialValue = 0f,
+                    targetValue = if (uiState.appState == AppState.CHECKING_ROOT) 360f else 0f,
+                    animationSpec = if (uiState.appState == AppState.CHECKING_ROOT)
+                        infiniteRepeatable(tween(1000, easing = LinearEasing))
+                    else
+                        snap(),
+                    label = "rot"
+                )
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "Refresh root",
+                    tint = if (uiState.appState == AppState.CHECKING_ROOT) AccentBlue else TextSecondary,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(rotation)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RootStatusCard(uiState: UiState) {
+    val (bgColor, borderColor, icon, label, sublabel) = when {
+        !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT ->
+            StatusConfig(BgSurface, BorderMuted, Icons.Rounded.HourglassEmpty, "Checking root...", "Requesting su access", AccentBlue)
+        uiState.isRootAvailable ->
+            StatusConfig(Color(0xFF0D1F12), Color(0xFF1A4025), Icons.Rounded.AdminPanelSettings, "Root Granted", "Shell UID 0 verified", AccentGreen)
+        else ->
+            StatusConfig(Color(0xFF1F0D0D), Color(0xFF40201A), Icons.Rounded.GppBad, "Root Denied", "su binary not available", AccentRed)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(borderColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = icon, contentDescription = null, tint = sublabel, modifier = Modifier.size(20.dp))
+            }
+            Column {
+                Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Text(text = sublabel2(uiState), fontSize = 12.sp, color = TextSecondary)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (uiState.appState == AppState.CHECKING_ROOT) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = AccentBlue,
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+    }
+}
+
+private fun sublabel2(uiState: UiState): String = when {
+    !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT -> "Requesting su access"
+    uiState.isRootAvailable -> "Shell UID 0 verified"
+    else -> "su binary not available"
+}
+
+private data class StatusConfig(
+    val bgColor: Color,
+    val borderColor: Color,
+    val icon: ImageVector,
+    val label: String,
+    val sublabel: String,
+    val accentColor: Color
+)
+
+@Composable
+private fun ScriptPreviewCard() {
+    var expanded by remember { mutableStateOf(false) }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = BgCard,
+        border = BorderStroke(1.dp, BorderSubtle)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Code,
+                    contentDescription = null,
+                    tint = AccentPurple,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "Script Preview",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "${RESET_COMMANDS.size} commands",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgDeep)
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    RESET_COMMANDS.forEach { cmd ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(text = "$", fontSize = 11.sp, color = AccentGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = cmd,
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(uiState: UiState, onExecute: () -> Unit) {
+    val isRunning = uiState.appState == AppState.RUNNING
+    val isDisabled = !uiState.isRootAvailable || isRunning || uiState.appState == AppState.CHECKING_ROOT
+
+    val buttonColor = when (uiState.appState) {
+        AppState.SUCCESS -> AccentGreen
+        AppState.FAILURE -> AccentRed
+        else -> AccentBlue
+    }
+
+    val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = if (isRunning) infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse) else snap(targetValueAtEnd = 1f),
+        label = "pulse"
+    )
+
+    Button(
+        onClick = onExecute,
+        enabled = !isDisabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = buttonColor.copy(alpha = if (isRunning) pulseAlpha else 1f),
+            disabledContainerColor = BgElevated
+        )
+    ) {
+        AnimatedContent(targetState = uiState.appState, label = "btn", transitionSpec = {
+            fadeIn(tween(200)) togetherWith fadeOut(tween(150))
+        }) { state ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                when (state) {
+                    AppState.RUNNING -> {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        Text("Executing...", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+                    }
+                    AppState.SUCCESS -> {
+                        Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Text("Reset Successful", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+                    }
+                    AppState.FAILURE -> {
+                        Icon(Icons.Rounded.ErrorOutline, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Text("Reset Failed — Retry", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+                    }
+                    AppState.NO_ROOT -> {
+                        Icon(Icons.Rounded.Lock, null, modifier = Modifier.size(18.dp), tint = TextMuted)
+                        Text("No Root Access", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextMuted)
+                    }
+                    else -> {
+                        Icon(Icons.Rounded.PlayArrow, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Text("Execute Reset", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogPanel(logs: List<LogEntry>, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(logs.size) {
+        if (logs.isNotEmpty()) {
+            coroutineScope.launch {
+                listState.animateScrollToItem(logs.size - 1)
+            }
+        }
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = BgCard,
+        border = BorderStroke(1.dp, BorderSubtle)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(AccentGreen))
+                Text(text = "Execution Log", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+                Spacer(modifier = Modifier.weight(1f))
+                Text(text = "${logs.size} entries", fontSize = 11.sp, color = TextMuted)
+            }
+
+            HorizontalDivider(color = BorderSubtle, thickness = 1.dp)
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BgDeep)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                items(logs) { log ->
+                    LogEntryRow(log)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogEntryRow(log: LogEntry) {
+    val (prefix, color) = when (log.type) {
+        LogType.SUCCESS -> Pair("✓", AccentGreen)
+        LogType.ERROR -> Pair("✗", AccentRed)
+        LogType.COMMAND -> Pair("$", Color(0xFFE3B341))
+        LogType.SYSTEM -> Pair("»", AccentBlue)
+        LogType.INFO -> Pair("·", TextSecondary)
+    }
+
+    val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(log.timestampMs))
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (log.type == LogType.ERROR) Color(0xFF1F0D0D) else Color.Transparent)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(text = timeStr, fontSize = 10.sp, color = TextMuted, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 1.dp))
+        Text(text = prefix, fontSize = 11.sp, color = color, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
+        Text(
+            text = log.message,
+            fontSize = 11.sp,
+            color = if (log.type == LogType.COMMAND) color else TextSecondary,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
