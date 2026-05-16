@@ -29,7 +29,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val BgDeep = Color(0xFF080B10)
 private val BgCard = Color(0xFF0D1117)
 private val BgSurface = Color(0xFF161B22)
 private val BgElevated = Color(0xFF1C2128)
@@ -38,21 +37,16 @@ private val BorderMuted = Color(0xFF30363D)
 private val AccentBlue = Color(0xFF58A6FF)
 private val AccentGreen = Color(0xFF3FB950)
 private val AccentRed = Color(0xFFF85149)
-private val AccentOrange = Color(0xFFD29922)
 private val AccentPurple = Color(0xFF8B949E)
 private val TextPrimary = Color(0xFFE6EDF3)
 private val TextSecondary = Color(0xFF8B949E)
 private val TextMuted = Color(0xFF484F58)
 
 @Composable
-fun ResetGuestApp(viewModel: MainViewModel) {
+fun ResetGuestApp(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDeep)
-    ) {
+    Box(modifier = modifier.background(BgDeep)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -60,7 +54,6 @@ fun ResetGuestApp(viewModel: MainViewModel) {
                 .navigationBarsPadding()
         ) {
             TopBar(uiState = uiState, onClear = viewModel::clearLogs, onRefreshRoot = viewModel::checkRoot)
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -68,25 +61,14 @@ fun ResetGuestApp(viewModel: MainViewModel) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Spacer(modifier = Modifier.height(4.dp))
-
                 RootStatusCard(uiState = uiState)
-
                 ScriptPreviewCard()
-
-                ActionButton(
-                    uiState = uiState,
-                    onExecute = viewModel::executeReset
-                )
-
+                ActionButton(uiState = uiState, onExecute = viewModel::executeReset)
                 if (uiState.logs.isNotEmpty()) {
-                    LogPanel(
-                        logs = uiState.logs,
-                        modifier = Modifier.weight(1f)
-                    )
+                    LogPanel(logs = uiState.logs, modifier = Modifier.weight(1f))
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
@@ -94,11 +76,7 @@ fun ResetGuestApp(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun TopBar(
-    uiState: UiState,
-    onClear: () -> Unit,
-    onRefreshRoot: () -> Unit
-) {
+private fun TopBar(uiState: UiState, onClear: () -> Unit, onRefreshRoot: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -111,71 +89,45 @@ private fun TopBar(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF1F6FEB), Color(0xFF58A6FF))
-                        )
-                    ),
+                    .background(Brush.linearGradient(listOf(Color(0xFF1F6FEB), Color(0xFF58A6FF)))),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.SettingsSuggest,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(Icons.Rounded.SettingsSuggest, null, tint = Color.White, modifier = Modifier.size(20.dp))
             }
             Column {
-                Text(
-                    text = "ResetGuest",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "ML Guest Account Reset",
-                    fontSize = 11.sp,
-                    color = TextMuted
-                )
+                Text("ResetGuest", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, fontFamily = FontFamily.Monospace)
+                Text("ML Guest Account Reset", fontSize = 11.sp, color = TextMuted)
             }
         }
-
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (uiState.logs.isNotEmpty()) {
-                IconButton(
-                    onClick = onClear,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.DeleteSweep,
-                        contentDescription = "Clear logs",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
+                IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.DeleteSweep, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                 }
+            }
+            val isChecking = uiState.appState == AppState.CHECKING_ROOT
+            val rotationTarget = if (isChecking) 360f else 0f
+            val infiniteTransition = rememberInfiniteTransition(label = "rot")
+            val rotation by if (isChecking) {
+                infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing)),
+                    label = "rot"
+                )
+            } else {
+                remember { mutableStateOf(0f) }
             }
             IconButton(
                 onClick = onRefreshRoot,
                 modifier = Modifier.size(36.dp),
-                enabled = uiState.appState != AppState.RUNNING && uiState.appState != AppState.CHECKING_ROOT
+                enabled = uiState.appState != AppState.RUNNING && !isChecking
             ) {
-                val rotation by rememberInfiniteTransition(label = "rot").animateFloat(
-                    initialValue = 0f,
-                    targetValue = if (uiState.appState == AppState.CHECKING_ROOT) 360f else 0f,
-                    animationSpec = if (uiState.appState == AppState.CHECKING_ROOT)
-                        infiniteRepeatable(tween(1000, easing = LinearEasing))
-                    else
-                        snap(),
-                    label = "rot"
-                )
                 Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = "Refresh root",
-                    tint = if (uiState.appState == AppState.CHECKING_ROOT) AccentBlue else TextSecondary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .rotate(rotation)
+                    Icons.Rounded.Refresh,
+                    null,
+                    tint = if (isChecking) AccentBlue else TextSecondary,
+                    modifier = Modifier.size(18.dp).rotate(rotation)
                 )
             }
         }
@@ -184,13 +136,31 @@ private fun TopBar(
 
 @Composable
 private fun RootStatusCard(uiState: UiState) {
-    val (bgColor, borderColor, icon, label, sublabel) = when {
-        !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT ->
-            StatusConfig(BgSurface, BorderMuted, Icons.Rounded.HourglassEmpty, "Checking root...", "Requesting su access", AccentBlue)
-        uiState.isRootAvailable ->
-            StatusConfig(Color(0xFF0D1F12), Color(0xFF1A4025), Icons.Rounded.AdminPanelSettings, "Root Granted", "Shell UID 0 verified", AccentGreen)
-        else ->
-            StatusConfig(Color(0xFF1F0D0D), Color(0xFF40201A), Icons.Rounded.GppBad, "Root Denied", "su binary not available", AccentRed)
+    val bgColor: Color
+    val borderColor: Color
+    val icon: ImageVector
+    val label: String
+    val accentColor: Color
+
+    when {
+        !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT -> {
+            bgColor = BgSurface; borderColor = BorderMuted
+            icon = Icons.Rounded.HourglassEmpty; label = "Checking root..."; accentColor = AccentBlue
+        }
+        uiState.isRootAvailable -> {
+            bgColor = Color(0xFF0D1F12); borderColor = Color(0xFF1A4025)
+            icon = Icons.Rounded.AdminPanelSettings; label = "Root Granted"; accentColor = AccentGreen
+        }
+        else -> {
+            bgColor = Color(0xFF1F0D0D); borderColor = Color(0xFF40201A)
+            icon = Icons.Rounded.GppBad; label = "Root Denied"; accentColor = AccentRed
+        }
+    }
+
+    val sublabel = when {
+        !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT -> "Requesting su access"
+        uiState.isRootAvailable -> "Shell UID 0 verified"
+        else -> "su binary not available"
     }
 
     Surface(
@@ -205,44 +175,22 @@ private fun RootStatusCard(uiState: UiState) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(borderColor),
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(borderColor),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = sublabel, modifier = Modifier.size(20.dp))
+                Icon(icon, null, tint = accentColor, modifier = Modifier.size(20.dp))
             }
             Column {
-                Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                Text(text = sublabel2(uiState), fontSize = 12.sp, color = TextSecondary)
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Text(sublabel, fontSize = 12.sp, color = TextSecondary)
             }
             Spacer(modifier = Modifier.weight(1f))
             if (uiState.appState == AppState.CHECKING_ROOT) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = AccentBlue,
-                    strokeWidth = 2.dp
-                )
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = AccentBlue, strokeWidth = 2.dp)
             }
         }
     }
 }
-
-private fun sublabel2(uiState: UiState): String = when {
-    !uiState.hasCheckedRoot || uiState.appState == AppState.CHECKING_ROOT -> "Requesting su access"
-    uiState.isRootAvailable -> "Shell UID 0 verified"
-    else -> "su binary not available"
-}
-
-private data class StatusConfig(
-    val bgColor: Color,
-    val borderColor: Color,
-    val icon: ImageVector,
-    val label: String,
-    val sublabel: String,
-    val accentColor: Color
-)
 
 @Composable
 private fun ScriptPreviewCard() {
@@ -263,51 +211,20 @@ private fun ScriptPreviewCard() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Code,
-                    contentDescription = null,
-                    tint = AccentPurple,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = "Script Preview",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "${RESET_COMMANDS.size} commands",
-                    fontSize = 11.sp,
-                    color = TextMuted
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(16.dp)
-                )
+                Icon(Icons.Rounded.Code, null, tint = AccentPurple, modifier = Modifier.size(18.dp))
+                Text("Script Preview", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text("${RESET_COMMANDS.size} commands", fontSize = 11.sp, color = TextMuted)
+                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = TextMuted, modifier = Modifier.size(16.dp))
             }
-
             AnimatedVisibility(visible = expanded) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(BgDeep)
-                        .padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().background(BgDeep).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     RESET_COMMANDS.forEach { cmd ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(text = "$", fontSize = 11.sp, color = AccentGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = cmd,
-                                fontSize = 11.sp,
-                                color = TextSecondary,
-                                fontFamily = FontFamily.Monospace,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text("$", fontSize = 11.sp, color = AccentGreen, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            Text(cmd, fontSize = 11.sp, color = TextSecondary, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -327,22 +244,25 @@ private fun ActionButton(uiState: UiState, onExecute: () -> Unit) {
         else -> AccentBlue
     }
 
-    val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = if (isRunning) infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse) else snap(targetValueAtEnd = 1f),
-        label = "pulse"
-    )
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by if (isRunning) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "pulse"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
 
     Button(
         onClick = onExecute,
         enabled = !isDisabled,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = buttonColor.copy(alpha = if (isRunning) pulseAlpha else 1f),
+            containerColor = buttonColor.copy(alpha = pulseAlpha),
             disabledContainerColor = BgElevated
         )
     ) {
@@ -383,14 +303,10 @@ private fun ActionButton(uiState: UiState, onExecute: () -> Unit) {
 @Composable
 private fun LogPanel(logs: List<LogEntry>, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            coroutineScope.launch {
-                listState.animateScrollToItem(logs.size - 1)
-            }
-        }
+        if (logs.isNotEmpty()) scope.launch { listState.animateScrollToItem(logs.size - 1) }
     }
 
     Surface(
@@ -406,24 +322,17 @@ private fun LogPanel(logs: List<LogEntry>, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(AccentGreen))
-                Text(text = "Execution Log", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+                Text("Execution Log", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
                 Spacer(modifier = Modifier.weight(1f))
-                Text(text = "${logs.size} entries", fontSize = 11.sp, color = TextMuted)
+                Text("${logs.size} entries", fontSize = 11.sp, color = TextMuted)
             }
-
             HorizontalDivider(color = BorderSubtle, thickness = 1.dp)
-
             LazyColumn(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(BgDeep)
-                    .padding(8.dp),
+                modifier = Modifier.fillMaxSize().background(BgDeep).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(logs) { log ->
-                    LogEntryRow(log)
-                }
+                items(logs) { log -> LogEntryRow(log) }
             }
         }
     }
@@ -431,12 +340,14 @@ private fun LogPanel(logs: List<LogEntry>, modifier: Modifier = Modifier) {
 
 @Composable
 private fun LogEntryRow(log: LogEntry) {
-    val (prefix, color) = when (log.type) {
-        LogType.SUCCESS -> Pair("✓", AccentGreen)
-        LogType.ERROR -> Pair("✗", AccentRed)
-        LogType.COMMAND -> Pair("$", Color(0xFFE3B341))
-        LogType.SYSTEM -> Pair("»", AccentBlue)
-        LogType.INFO -> Pair("·", TextSecondary)
+    val prefix: String
+    val color: Color
+    when (log.type) {
+        LogType.SUCCESS -> { prefix = "✓"; color = AccentGreen }
+        LogType.ERROR   -> { prefix = "✗"; color = AccentRed }
+        LogType.COMMAND -> { prefix = "$"; color = Color(0xFFE3B341) }
+        LogType.SYSTEM  -> { prefix = "»"; color = AccentBlue }
+        LogType.INFO    -> { prefix = "·"; color = TextSecondary }
     }
 
     val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(log.timestampMs))
@@ -450,10 +361,10 @@ private fun LogEntryRow(log: LogEntry) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Text(text = timeStr, fontSize = 10.sp, color = TextMuted, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 1.dp))
-        Text(text = prefix, fontSize = 11.sp, color = color, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
+        Text(timeStr, fontSize = 10.sp, color = TextMuted, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 1.dp))
+        Text(prefix, fontSize = 11.sp, color = color, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
         Text(
-            text = log.message,
+            log.message,
             fontSize = 11.sp,
             color = if (log.type == LogType.COMMAND) color else TextSecondary,
             fontFamily = FontFamily.Monospace,
